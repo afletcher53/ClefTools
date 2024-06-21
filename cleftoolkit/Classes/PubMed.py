@@ -1,3 +1,5 @@
+import time
+from requests.exceptions import RequestException
 from xml.dom import minidom
 import requests
 import xml.etree.ElementTree as ET
@@ -20,6 +22,25 @@ class ArticleData:
 
     def __str__(self):
         return f"PMID: {self.pmid}\nTitle: {self.title}\nAuthors: {', '.join(self.authors)}\nJournal: {self.journal}\nPublication Date: {self.pubdate}\nDOI: {self.doi}\nAbstract: {self.abstract}"
+
+
+def retry_on_exception(max_retries=3, backoff_factor=0.3):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            retries = 0
+            while retries < max_retries:
+                try:
+                    return func(*args, **kwargs)
+                except RequestException as e:
+                    wait = backoff_factor * (2 ** retries)
+                    print(f"Request failed. Retrying in {wait:.2f} seconds...")
+                    time.sleep(wait)
+                    retries += 1
+            raise Exception(
+                "Max retries reached. Unable to complete the request.")
+        return wrapper
+    return decorator
 
 
 class PubMed(API):
@@ -46,6 +67,7 @@ class PubMed(API):
         return wrapper
 
     @error_guard
+    @retry_on_exception(max_retries=3, backoff_factor=0.3)
     def get(self, pmids: List[str]) -> ET.Element:
         """
         Get full records for a list of PubMed IDs
@@ -156,6 +178,7 @@ class PubMed(API):
         xml = self.get([pmid])
         return {child.tag: child.text for child in xml.iter() if child.text and child.text.strip()}
 
+    @retry_on_exception(max_retries=3, backoff_factor=0.3)
     def get_article_data_from_list(self, article_pmids: List[str]) -> List[ArticleData]:
         """
         Get all metadata for a list of PubMed IDs using a single API call
@@ -169,11 +192,13 @@ class PubMed(API):
             pmid = article.find('.//PMID').text
             article_elem = article.find('.//Article')
 
+            title = article_elem.find('.//ArticleTitle')
+            abstract = article_elem.find('.//AbstractText')
+
             article_data = ArticleData(
                 pmid=pmid,
-                title=article_elem.find('.//ArticleTitle').text,
-                abstract=article_elem.find('.//AbstractText').text if article_elem.find(
-                    './/AbstractText') is not None else "Abstract not available",
+                title=title.text if title is not None else "Title not available",
+                abstract=abstract.text if abstract is not None else "Abstract not available",
             )
             article_data_list.append(article_data)
 
