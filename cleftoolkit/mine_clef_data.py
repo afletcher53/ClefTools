@@ -14,7 +14,7 @@ files = [file for file in os.listdir(data_folder) if file.endswith(".qrels")]
 
 data_list = []
 # remoove the 2017 data called clef_2017_train.qrels
-files.remove("clef_2017_train.qrels")
+files.remove("clef_2018_train.qrels")
 for file in files:
     df = pd.read_csv(f"{data_folder}/{file}", sep="\s+",
                      header=None, engine='python')

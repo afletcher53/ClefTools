@@ -3,7 +3,7 @@ from requests.exceptions import RequestException
 from xml.dom import minidom
 import requests
 import xml.etree.ElementTree as ET
-from typing import Callable, List, Dict
+from typing import Callable, List, Dict, Optional
 from functools import wraps
 from dataclasses import dataclass
 
@@ -14,14 +14,15 @@ from Classes.API import API
 class ArticleData:
     pmid: str
     title: str
-    # authors: List[str]
-    # journal: str
-    # # pubdate: str
-    # doi: str
     abstract: str
+    is_book: bool
+    book_title: Optional[str] = None
 
     def __str__(self):
-        return f"PMID: {self.pmid}\nTitle: {self.title}\nAuthors: {', '.join(self.authors)}\nJournal: {self.journal}\nPublication Date: {self.pubdate}\nDOI: {self.doi}\nAbstract: {self.abstract}"
+        if self.is_book:
+            return f"PMID: {self.pmid}\nBook Title: {self.book_title}\nChapter Title: {self.title}\nAbstract: {self.abstract}"
+        else:
+            return f"PMID: {self.pmid}\nTitle: {self.title}\nAbstract: {self.abstract}"
 
 
 def retry_on_exception(max_retries=3, backoff_factor=0.3):
@@ -69,31 +70,46 @@ class PubMed(API):
     @error_guard
     @retry_on_exception(max_retries=3, backoff_factor=0.3)
     def get(self, pmids: List[str]) -> ET.Element:
-        """
-        Get full records for a list of PubMed IDs
-        :param pmids: List of PubMed IDs
-        :return: XML Element Tree
-        """
         params = {
             "db": "pubmed",
             "retmode": "xml",
-            "retmax": 1000,  # Increased to 1000 to reduce number of requests
+            "retmax": 1000,
         }
 
         all_results = ET.Element("PubmedArticleSet")
 
         for i in range(0, len(pmids), 1000):
             batch = pmids[i:i+1000]
+            params["id"] = ",".join(batch)
 
-            if len(batch) > 200:
-                params["id"] = ",".join(batch)
-                response = requests.post(self.base_url, data=params)
-            else:
-                params["id"] = ",".join(batch)
-                response = requests.get(self.base_url, params=params)
+            try:
+                if len(batch) > 200:
+                    response = requests.post(self.base_url, data=params)
+                else:
+                    response = requests.get(self.base_url, params=params)
 
-            batch_xml = ET.fromstring(response.content)
-            all_results.extend(batch_xml.findall(".//PubmedArticle"))
+                # print(f"Request URL: {response.url}")
+                # # print the request url with parameters so that we can see what is being requested
+                # print(f"Request URL: {response.url}{response.request.body}")
+                # print(f"Response status code: {response.status_code}")
+                # # Print first 500 characters
+                # print(f"Response content: {response.content[:500]}...")
+
+                batch_xml = ET.fromstring(response.content)
+                xml_str = minidom.parseString(
+                    ET.tostring(batch_xml)).toprettyxml(indent="  ")
+
+                # check if its a PubMedArticle or a PubmedBookArticle
+                if batch_xml.find(".//PubmedArticle") is not None:
+                    all_results.extend(batch_xml.findall(".//PubmedArticle"))
+                elif batch_xml.find(".//PubmedBookArticle") is not None:
+                    all_results.extend(
+                        batch_xml.findall(".//PubmedBookArticle"))
+
+                # all_results.extend(batch_xml.findall(".//PubmedArticle"))
+            except Exception as e:
+                print(f"Error processing batch {i}-{i+999}: {str(e)}")
+                print(f"PMIDs in this batch: {batch}")
 
         return all_results
 
@@ -199,6 +215,24 @@ class PubMed(API):
                 pmid=pmid,
                 title=title.text if title is not None else "Title not available",
                 abstract=abstract.text if abstract is not None else "Abstract not available",
+                is_book=False
+            )
+            article_data_list.append(article_data)
+
+        for book in xml.findall('.//PubmedBookArticle'):
+            pmid = book.find('.//PMID').text
+            book_elem = book.find('.//BookDocument')
+
+            book_title = book_elem.find('.//BookTitle')
+            chapter_title = book_elem.find('.//ArticleTitle')
+            abstract = book_elem.find('.//AbstractText')
+
+            article_data = ArticleData(
+                pmid=pmid,
+                title=chapter_title.text if chapter_title is not None else "Chapter title not available",
+                abstract=abstract.text if abstract is not None else "Abstract not available",
+                is_book=True,
+                book_title=book_title.text if book_title is not None else "Book title not available"
             )
             article_data_list.append(article_data)
 

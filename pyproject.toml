@@ -7,6 +7,15 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.12"
+requests = "^2.32.3"
+pandas = "^2.2.2"
+tqdm = "^4.66.4"
+pybind11 = "^2.12.0"
+scikit-learn = "^1.5.0"
+scipy = "1.12"
+python-dotenv = "^1.0.1"
+matplotlib = "^3.9.0"
+pillow = "^10.3.0"
 
 
 [build-system]
