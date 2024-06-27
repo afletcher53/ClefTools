@@ -24,8 +24,7 @@ class DataLoader:
     def load_data(self, cd: str, folder: str) -> Dict[str, Article]:
         file_path = self.data_folder / folder / f"{cd}.csv"
         if not file_path.exists():
-            raise FileNotFoundError(f"No data found for CD {
-                                    cd} in the data folder.")
+            raise FileNotFoundError(f"No data found for CD {cd} in the data folder.")
 
         articles = {}
         with open(file_path, 'r', encoding='utf-8') as csvfile:

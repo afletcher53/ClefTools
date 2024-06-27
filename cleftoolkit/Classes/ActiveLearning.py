@@ -5,7 +5,7 @@ import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.spatial.distance as distance
-from Article import Article
+from Article import Articleimport gensim
 from DataController import DataController
 from scipy import stats
 from sklearn.base import BaseEstimator
@@ -85,8 +85,7 @@ class ActiveLearning:
     def _validate_inputs(self):
         """Validate input parameters."""
         if self.acquisition_function not in self.VALID_ACQUISITION_FUNCTIONS:
-            raise ValueError(f"Invalid acquisition function. Choose from {
-                             self.VALID_ACQUISITION_FUNCTIONS}")
+            raise ValueError(f"Invalid acquisition function. Choose from {self.VALID_ACQUISITION_FUNCTIONS}")
 
         if self.batch_size > 0 and self.reveal_size > self.batch_size:
             raise ValueError("Reveal size cannot be greater than batch size.")
@@ -172,8 +171,7 @@ class ActiveLearning:
         """Print debug information."""
         print(f"Iteration: {self.iter}")
         print(f"n/N: {self.n_N:.4f}")
-        print(f"Percentage documents left: {
-              (len(self.unlabeled) - len(self.labeled))/len(self.dataset.data):.2%}")
+        print(f"Percentage documents left: {(len(self.unlabeled) - len(self.labeled))/len(self.dataset.data):.2%}")
         print("-" * 40)
 
     def get_labelled_in_model_format(self):
@@ -225,8 +223,7 @@ class ActiveLearning:
         elif self.acquisition_function == "minimum_variance":
             return self._minimum_variance_sampling(X, batch_indices)
         else:
-            raise ValueError(f"Acquisition function {
-                             self.acquisition_function} not implemented.")
+            raise ValueError(f"Acquisition function {self.acquisition_function} not implemented.")
 
     def _minimum_variance_sampling(self, X, batch_indices):
         """
@@ -465,8 +462,7 @@ def generate_seed_pools(
         attempts += 1
 
     if len(seed_pools) < num_pools:
-        print(f"Warning: Only generated {
-              len(seed_pools)} unique seed pools out of {num_pools} requested.")
+        print(f"Warning: Only generated {len(seed_pools)} unique seed pools out of {num_pools} requested.")
 
     return [list(pool) for pool in seed_pools]
 
@@ -546,14 +542,14 @@ def run_and_plot_active_learning(dataset, batch_size=50, reveal_size=25, seed=0,
         tsne = TSNE(n_components=2, random_state=seed)
         reduced_features = tsne.fit_transform(all_features)
 
-    acquisition_functions = ["uncertainty", "certainty", "random", "alternating",
-                             "diversity", "adaptive_certainty_uncertainty", "minimum_variance"]
-    colors = ['blue', 'green', 'red', 'purple', 'orange',
-              'brown', 'pink']  # Added a color for minimum_variance
+    acquisition_functions = ["uncertainty", "certainty", "random", "alternating"]
+    colors = ['blue', 'green', 'red', 'purple']  # Added a color for minimum_variance
 
     lines_dict = {acq_func: {'n_N': [], 'feature_coverage': []}
                   for acq_func in acquisition_functions}
 
+    auc_n_N = {}
+    auc_feature_coverage = {}
     for i, seed_pool in enumerate(seed_pools):
         for j, acq_func in enumerate(acquisition_functions):
             active_learner = ActiveLearning(
@@ -579,6 +575,10 @@ def run_and_plot_active_learning(dataset, batch_size=50, reveal_size=25, seed=0,
             lines_dict[acq_func]['n_N'].append((percent_uncovered, n_N))
             lines_dict[acq_func]['feature_coverage'].append(
                 (percent_uncovered, feature_coverage))
+            # calculate the AUC for the n/N curve and feature coverage
+            auc_n_N[acq_func].append(np.trapz(n_N, percent_uncovered))
+            auc_feature_coverage[acq_func].append(np.trapz(feature_coverage, percent_uncovered))
+
 
             if generate_clustering and i == num_runs - 1:
                 ax_cluster = fig.add_subplot(3, 1, j+1)
@@ -586,6 +586,20 @@ def run_and_plot_active_learning(dataset, batch_size=50, reveal_size=25, seed=0,
                                 title=f"Final Feature Space Clustering ({acq_func.capitalize()})")
 
             del active_learner
+
+    # PRINT THE AUC VALUES FOR EACH ACQUISITION FUNCTION
+    avg_auc_n_N = {}
+    avg_auc_feature_coverage = {}
+
+    for acq_func in acquisition_functions:
+        avg_auc_n_N[acq_func] = np.mean(auc_n_N[acq_func])
+        avg_auc_feature_coverage[acq_func] = np.mean(auc_feature_coverage[acq_func])
+
+    # Print the results in a table format
+    print("Acquisition Function | Avg. AUC (n/N) | Avg. AUC (Feature Coverage)")
+    print("---------------------|---------------|---------------------------")
+    for acq_func in acquisition_functions:
+        print(f"{acq_func:20} | {avg_auc_n_N[acq_func]:13.2f} | {avg_auc_feature_coverage[acq_func]:25.2f}")
 
     def plot_confidence_interval(ax, x_data, y_data, color, label):
         x_data = np.array(x_data)
@@ -633,8 +647,7 @@ def run_and_plot_active_learning(dataset, batch_size=50, reveal_size=25, seed=0,
     ax2.grid(True)
 
     plt.tight_layout()
-    plt.savefig(f"active_learning_{dataset}_{num_runs}_{
-                reveal_size}_{batch_size}_{seed}_{adaptive_threshold}.png")
+    plt.savefig(f"active_learning_{dataset}_{num_runs}_{reveal_size}_{batch_size}_{seed}_{adaptive_threshold}.png")
     plt.close(fig)
 
     del dataset_controller

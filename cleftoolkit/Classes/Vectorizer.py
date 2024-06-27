@@ -24,8 +24,7 @@ class Vectorizer:
     def _load_model(self):
         if self.model is None:
             if not self.model_path.exists():
-                logger.info(f"FastText model not found. Downloading {
-                            self.model_name}...")
+                logger.info(f"FastText model not found. Downloading {self.model_name}...")
                 self.model_path.parent.mkdir(parents=True, exist_ok=True)
                 model = api.load(self.model_name)
                 model.save_word2vec_format(str(self.model_path), binary=True)

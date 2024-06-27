@@ -7,8 +7,7 @@ from typing import Callable, List, Dict, Optional
 from functools import wraps
 from dataclasses import dataclass
 
-from Classes.API import API
-
+from .API import API
 
 @dataclass
 class ArticleData:
