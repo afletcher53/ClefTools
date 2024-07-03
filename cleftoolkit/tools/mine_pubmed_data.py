@@ -7,6 +7,8 @@ import time
 import threading
 import psutil
 
+from fp.fp import FreeProxy
+
 from cleftoolkit.Classes.PubMed import PubMed
 
 # Global stop event
@@ -85,6 +87,8 @@ def process_cd_with_monitor(cd, cd_df, pubmed, folder, worker_monitor):
         worker_monitor.decrement()
 
 def main():
+    proxy = FreeProxy().get()
+
     setup_logging()
     data_folder = "./data"
     files = get_qrels_files(data_folder)
@@ -98,13 +102,10 @@ def main():
     
     with ThreadPoolExecutor(max_workers=5) as executor:
         worker_monitor = WorkerMonitor(executor)
-        
         future_to_cd = {executor.submit(process_cd_with_monitor, cd, data[data["CD"] == cd].copy(), pubmed, files[0].split(".")[0], worker_monitor): cd for cd in cds}
-        
         with tqdm(total=len(cds), desc="Processing CDs") as pbar:
             update_thread = threading.Thread(target=update_progress_bar, args=(pbar, worker_monitor), daemon=True)
             update_thread.start()
-            
             try:
                 for future in as_completed(future_to_cd):
                     if stop_event.is_set():

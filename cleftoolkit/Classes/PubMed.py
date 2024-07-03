@@ -44,9 +44,10 @@ def retry_on_exception(max_retries=3, backoff_factor=0.3):
 
 
 class PubMed(API):
-    def __init__(self):
+    def __init__(self, proxy=None):
         super().__init__()
         self.base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+        self.proxy = proxy
 
     def error_guard(func: Callable) -> Callable:
         @wraps(func)
@@ -83,10 +84,9 @@ class PubMed(API):
 
             try:
                 if len(batch) > 200:
-                    response = requests.post(self.base_url, data=params)
+                    response = requests.post(self.base_url, data=params, proxies={'http': self.proxy, 'https': self.proxy} if self.proxy else None)
                 else:
-                    response = requests.get(self.base_url, params=params)
-
+                    response = requests.get(self.base_url, params=params, proxies={'http': self.proxy, 'https': self.proxy} if self.proxy else None)
                 # print(f"Request URL: {response.url}")
                 # # print the request url with parameters so that we can see what is being requested
                 # print(f"Request URL: {response.url}{response.request.body}")
